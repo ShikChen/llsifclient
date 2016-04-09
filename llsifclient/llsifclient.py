@@ -1088,7 +1088,7 @@ class LLSIFClient:
             headers = {
                     'Connection': 'keep-alive',
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'User-Agent': 'Mozilla/5.0 (Linux; Android 4.4.4; XT830C Build/KXC21.5-40) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/33.0.0.0 Mobile Safari/537.36',
+                    'User-Agent': 'Mozilla/5.0 (Linux; Android 5.0; Nexus 6 Build/KXC21.5-40) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/33.0.0.0 Mobile Safari/537.36',
                     'authorize': None,
                     'time-zone': self.DEF_HEADERS['Time-Zone'],
                     'os-version': self.DEF_HEADERS['OS-Version'],
