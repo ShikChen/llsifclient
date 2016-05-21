@@ -13,7 +13,7 @@ Not all possible client actions are implemented. Some of the things you can do w
 * Drawing cards (scouting)
 * Managing cards
 
-**NOTE: This package is not ready to use out of the box!** The HMAC key that authenticates client messages to the server is not included in the code, so it won't talk to KLab's production servers. See the code for more details.
+**NOTE: This package is not ready to use out of the box!** The HMAC key that authenticates client messages to the server is not included in the code, so it won't talk to KLab's production servers. A recent addition allows retrieving the correct X-Message-Code from a Tor hidden service. *Read the code* for more details.
 
 ## API Overview
 
