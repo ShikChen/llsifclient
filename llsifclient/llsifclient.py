@@ -1040,10 +1040,10 @@ class LLSIFClient:
                             httpresp.getheader('Content-Encoding'))
         
         # More sanity checks
-        if httpresp.getheader('X-Message-Code') is not None and \
+        '''if httpresp.getheader('X-Message-Code') is not None and \
                     not self.gen_xmessagecode(respbody) == \
                     httpresp.getheader('X-Message-Code'):
-            logger.warning('Server response X-Message-Code incorrect')
+            logger.warning('Server response X-Message-Code incorrect')'''
         
         # Decode JSON objects if found
         contenttype = httpresp.getheader('Content-Type')
