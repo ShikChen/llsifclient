@@ -58,9 +58,9 @@ class LLSIFClient:
             ('Accept-Encoding', 'gzip,deflate'),
             ('API-Model', 'straightforward'),
             ('Debug', '1'),
-            ('Bundle-Version', '3.2.1'),
+            ('Bundle-Version', '4.0.2'),
             # CUSTOMIZATION: Must match server version
-            ('Client-Version', '17.3'), 
+            ('Client-Version', '18.8'), 
             # CUSTOMIZATION: model of the "phone/tablet" you're "playing" on
             ('OS-Version', 'Nexus 6 google shamu 5.0'), 
             #ro.product.model, ro.product.brand, ro.product.board, ro.build.version.release
@@ -113,6 +113,7 @@ class LLSIFClient:
         self.session = {'loginkey':None, 'userid':None, 'token':None,
                         'nonce':0, 'commandnum':0, 'wv_header':None,
                         'last_command':None, 'last_login':None}
+        self.httpconn = None
     
     def start_session(self):
         '''Start new session by obtaining authorize_token from server.
@@ -131,6 +132,14 @@ class LLSIFClient:
         self.session['wv_header'] = None
         self.session['last_command'] = None
         self.session['last_login'] = None
+        
+        if self.httpconn is not None:
+            try:
+                self.httpconn.close()
+            except http.client.HTTPException:
+                pass
+            finally:
+                self.httpconn = None
         
         respobj = self.api_single_request(None, '/main.php/login/authkey')
         
@@ -187,13 +196,16 @@ class LLSIFClient:
         
         logger.info('Retrieving daily login bonuses')
         
-        # This request has different order than most others
+        '''# This request has different order than most others
         requestdata = OrderedDict([('module', 'lbonus'),
                                    ('action', 'execute'),
                                    ('timeStamp', None),
                                    ('commandNum', None)])
         
-        respobj = self.api_single_request(requestdata)
+        
+        respobj = self.api_single_request(requestdata)'''
+        
+        respobj = self.api_single_request(('lbonus', 'execute'))
         
         return respobj
     
@@ -203,6 +215,15 @@ class LLSIFClient:
         logger.info('Retrieving transfer code')
         
         respobj = self.api_single_request(('handover', 'start'))
+        
+        return respobj
+    
+    def new_transfer_code(self):
+        '''Create new transfer code for curent account.'''
+        
+        logger.info('Renewing transfer code')
+        
+        respobj = self.api_single_request(('handover', 'renew'))
         
         return respobj
     
@@ -604,27 +625,31 @@ class LLSIFClient:
         logger.info('Executing "startup" API bundle')
         
         apirequest = [('login', 'topInfo'),
+                      ('login', 'topInfoOnce'),
                       ('live', 'liveStatus'),
                       ('live', 'schedule'),
                       ('marathon', 'marathonInfo'),
-                      ('login', 'topInfoOnce'),
+                      ('battle', 'battleInfo'),
+                      ('festival', 'festivalInfo'),
+                      ('online', 'info'),
+                      ('challenge', 'challengeInfo'),
                       ('unit', 'unitAll'),
                       ('unit', 'deckInfo'),
-                      ('payment', 'productList'),
+                      ('unit', 'supporterAll'),
+                      ('unit', 'removableSkillInfo'),
+                      ('album', 'albumAll'),
                       ('scenario', 'scenarioStatus'),
                       ('subscenario', 'subscenarioStatus'),
+                      ('eventscenario', 'status'),
                       ('user', 'showAllItem'),
-                      ('battle', 'battleInfo'),
+                      ('payment', 'productList'),
                       ('banner', 'bannerList'),
                       ('notice', 'noticeMarquee'),
-                      ('festival', 'festivalInfo'),
-                      ('eventscenario', 'status'),
+                      ('user', 'getNavi'),
                       ('navigation', 'specialCutin'),
-                      ('album', 'albumAll'),
                       ('award', 'awardInfo'),
                       ('background', 'backgroundInfo'),
-                      ('online', 'info'),
-                      ('challenge', 'challengeInfo')]
+                      ('exchange', 'owningPoint')]
         
         respobj = self.api_multiple_requests(apirequest)
         
@@ -769,7 +794,8 @@ class LLSIFClient:
         logger.info('Checking whether account is connected to G+')
         
         requestdata = OrderedDict([('module', 'platformAccount'),
-                                   ('action', 'isConnectedLlAccount')])
+                                   ('action', 'isConnectedLlAccount'),
+                                   ('mgd', 1)])
         
         respobj = self.api_single_request(requestdata)
         
@@ -795,7 +821,7 @@ class LLSIFClient:
                                                 request['action']])
         logger.debug('request URL: %s', url)
         
-        timestamp = str(int(time.time()))
+        timestamp = int(time.time())
         
         self.session['commandnum'] += 1
         
@@ -805,16 +831,17 @@ class LLSIFClient:
             try: # duck typing: tuple?
                 requestdata = OrderedDict([
                               ('module', request[0]), 
-                              ('commandNum', self.session['loginkey'] + '.' + \
-                                             timestamp + '.' + \
-                                             str(self.session['commandnum'])),
                               ('action', request[1]),
-                              ('timeStamp', timestamp)])
+                              ('timeStamp', timestamp),
+                              ('mgd', 1),
+                              ('commandNum', self.session['loginkey'] + '.' + \
+                                             str(timestamp) + '.' + \
+                                             str(self.session['commandnum']))])
             except KeyError: # duck typing: dict?
                 requestdata = copy.deepcopy(request)
                 if 'commandNum' in requestdata:
                     requestdata['commandNum'] = self.session['loginkey'] + \
-                                             '.' + timestamp + '.' + \
+                                             '.' + str(timestamp) + '.' + \
                                              str(self.session['commandnum'])
                 if 'timeStamp' in requestdata:
                     requestdata['timeStamp'] = timestamp
@@ -826,7 +853,7 @@ class LLSIFClient:
             requestdata = requestjson.encode('utf-8')
         
         respstatus, respheaders, respbody, respobj = self.api_post_request(url,
-                                requestdata=requestdata, timestamp=timestamp)
+                                requestdata=requestdata, timestamp=str(timestamp))
         
         return respobj
     
@@ -840,7 +867,7 @@ class LLSIFClient:
         
         logger.debug('Submitting multiple API requests in one connection')
         
-        timestamp = str(int(time.time()))
+        timestamp = int(time.time())
         
         requestdata = []
         
@@ -863,7 +890,7 @@ class LLSIFClient:
         requestdata = requestjson.encode('utf-8')
         
         respstatus, respheaders, respbody, respobj = self.api_post_request(url,
-                                requestdata=requestdata, timestamp=timestamp)
+                                requestdata=requestdata, timestamp=str(timestamp))
         
         return respobj
     
@@ -962,18 +989,19 @@ class LLSIFClient:
         for timeout_attempt in range(10):
             try:
                 #time.sleep(random.uniform(0.3, 0.5))
-                httpconn = http.client.HTTPConnection(self.SERVER_HOST, timeout = 10)
-                httpconn.connect()
-                httpconn.putrequest("POST", url, skip_accept_encoding = True)
+                if self.httpconn is None:
+                    self.httpconn = http.client.HTTPConnection(self.SERVER_HOST, timeout = 10)
+                    self.httpconn.connect()
+                self.httpconn.putrequest("POST", url, skip_accept_encoding = True)
                 for headeritem in headers.items():
-                    httpconn.putheader(headeritem[0], headeritem[1])
-                httpconn.endheaders()
+                    self.httpconn.putheader(headeritem[0], headeritem[1])
+                self.httpconn.endheaders()
                 
                 if requestdata is not None:
-                    httpconn.send(requestbody)
+                    self.httpconn.send(requestbody)
                 
                 logger.debug('Receiving from server')
-                httpresp = httpconn.getresponse()
+                httpresp = self.httpconn.getresponse()
                 
                 respheaders = httpresp.getheaders()
                 respbody = httpresp.read()
@@ -983,7 +1011,7 @@ class LLSIFClient:
                 logger.debug('Server response body:')
                 logger.debug(str(respbody))
                 
-                httpconn.close()
+                #httpconn.close()
                 
                 if not httpresp.status == 200:
                     logger.warning('HTTP status code: {:d}'.format(httpresp.status))
@@ -998,7 +1026,11 @@ class LLSIFClient:
                         raise RuntimeError('HTTP status code {:d}'.format(httpresp.status))
             except socket.timeout:
                 logger.info('HTTP request timed out')
+                self.httpconn = None
                 #continue
+            except http.client.HTTPException as e:
+                logger.warning('HTTP Exception raised: {}'.format(e))
+                self.httpconn = None
             else:
                 break
         else:
