@@ -1,6 +1,6 @@
 # llsifclient
 
-This is Python 3 package for a partial implementation of the client side APIs of Love Live School Idol Festival (Japanese Android version).
+This is a Python 3 package that implements (partially) the client side APIs of *Love Live School Idol Festival* (Japanese Android version).
 
 Not all possible client actions are implemented. Some of the things you can do with this package are:
 
@@ -13,7 +13,15 @@ Not all possible client actions are implemented. Some of the things you can do w
 * Drawing cards (scouting)
 * Managing cards
 
-**NOTE: This package is not ready to use out of the box!** The HMAC key that authenticates client messages to the server is not included in the code, so it won't talk to KLab's production servers. See the code for more details.
+Get a taste of what this package can do with `tinyclient.py`. This script implements the "starting the game" experience, including account registration, logging in, getting all the log-in bonuses, and reading the event & update notices.
+
+## Before using the package
+
+**NOTE: This package is not ready to use out of the box!** Many API calls are authenticated with an HMAC digest (X-Message-Code), and KLab's servers will reject messages without the correct digest. The key for this HMAC is not included in the code. In order to use this package against KLab's production servers, a function `gen_xmessagecode()` must be implemented in file `llsifclient/gen_xmessagecode.py` that returns the correct HMAC digest.
+
+The HMAC key can be found by disassembling the game's NDK binary. The key is not stored as a string constant, and therefore cannot be extracted by simply running `strings` over the binary; actually reading the code is required. Once the key is recovered, refer to `gen_xmessagecode.example.py`.
+
+Alternatively, ask a third-party to calculate the correct X-Message-Code for every API call. Read `gen_xmessagecode.tor-hidden-service.py` for details.
 
 ## API Overview
 
@@ -39,7 +47,7 @@ When the game client is launched, it requests an authentication token from the s
 
 First, the glaring vulnerability: Since everything runs over HTTP, it's all plaintext, so an attacker in an MITM position can easily intercept `login_key` and `login_password` when a user launches the game client, therefore stealing the account.
 
-Client requests with a body and server responses contain an HTTP header `X-Message-Code`, which is an HMAC-SHA1 computed over the request/response body. This would have stopped 3rd-party clients like this one, but the HMAC key can be found with a bit of patience by disassembling the game client's NDK binary. It can *not* be found by simply running `strings` over the binary; that would be way too easy.
+Client requests with a body and server responses contain an HTTP header `X-Message-Code`, which is an HMAC-SHA1 computed over the request/response body. This would have stopped 3rd-party clients like this one, except the HMAC key can be found with a bit of patience by disassembling the game client's NDK binary.
 
 In addition, server replies are signed with a 1024-bit RSA key with the signature in the header `X-Message-Sign`. The public key can be found with `strings`. This does effectively prevent anyone from making private servers that work with the official client.
 
