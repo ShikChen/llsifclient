@@ -87,6 +87,7 @@ class LLSIFClient:
         元気な学院生 天然な学院生 勇敢な学院生 気になる学院生 真面目な学院生
         不思議な学院生 癒し系な学院生 心優しい学院生 さわやかな学院生
         頼りになる学院生 さすらいの学院生 正義感あふれる学院生 カラオケ好きの学院生'''.split()
+    DEF_MGD = 2
     
     class LLSIFError(Exception):
         '''Base exception for this module.'''
@@ -114,6 +115,8 @@ class LLSIFClient:
                         'nonce':0, 'commandnum':0, 'wv_header':None,
                         'last_command':None, 'last_login':None}
         self.httpconn = None
+        self.mgd = self.DEF_MGD
+        # mgd is the current game interface type: 1 for muse, 2 for Aquors
     
     def start_session(self):
         '''Start new session by obtaining authorize_token from server.
@@ -247,6 +250,7 @@ class LLSIFClient:
                                    ('action', 'exec'),
                                    ('timeStamp', None),
                                    ('handover', transfercode),
+                                   ('mgd', None),
                                    ('commandNum', None)])
         
         respobj = self.api_single_request(requestdata)
@@ -272,6 +276,8 @@ class LLSIFClient:
         
         logger.info('Creating new account')
         
+        self.mgd = 2
+        
         self.start_session()
         self.register_new_login(newloginkey, newloginpasswd)
         self.start_without_invite(newloginkey, newloginpasswd)
@@ -292,18 +298,29 @@ class LLSIFClient:
         
         self.startup_api_calls()
         
-        self.unit_and_deck()
+        #self.unit_and_deck()
         
         unitlist = self.login_unitlist()
         available_units = [x['unit_initial_set_id'] for \
-                           x in unitlist['response_data']['unit_initial_set']]
+                           x in unitlist['response_data']['member_category_list'][0]['unit_initial_set']]
+        # Only muse members are included in available_units to be randomly 
+        # selected below.
+        # To choose an Aquors member, specify leader=[11-19] directly
         
         # Insert wait here: selecting leader
         logger.debug('Sleep for a bit...')
         time.sleep(random.uniform(3,5))
         
-        if not leader in available_units:
+        #if not leader in available_units:
+        if leader is None:
             leader = random.choice(available_units)
+        
+        # Change interface to muse version if muse leader chosen
+        if leader < 10:
+            self.mgd = 1
+        else:
+            self.mgd = 2
+        
         self.login_unitselect(leader)
         self.tutorialskip()
         
@@ -382,7 +399,8 @@ class LLSIFClient:
         connectstate = self.checkconnectedaccount()
         self.lbonus()
         
-        self.handle_webview_get_request('/webview.php/announce/index?0=')
+        #self.handle_webview_get_request('/webview.php/announce/index?0=')
+        time.sleep(random.uniform(0,2))
         self.session['wv_header'] = None
         
         allinfo = self.startup_api_calls()
@@ -470,6 +488,7 @@ class LLSIFClient:
         requestdata = OrderedDict([('module', 'tos'),
                                    ('action', 'tosAgree'),
                                    ('timeStamp', None),
+                                   ('mgd', None),
                                    ('tos_id', tosid),
                                    ('commandNum', None)])
         
@@ -485,6 +504,7 @@ class LLSIFClient:
         requestdata = OrderedDict([('module', 'user'),
                                    ('action', 'changeName'),
                                    ('timeStamp', None),
+                                   ('mgd', None),
                                    ('name', nickname),
                                    ('commandNum', None)])
         
@@ -503,6 +523,7 @@ class LLSIFClient:
                                    ('action', 'progress'),
                                    ('timeStamp', None),
                                    ('tutorial_state', tutorialstate),
+                                   ('mgd', None),
                                    ('commandNum', None)])
         
         respobj = self.api_single_request(requestdata)
@@ -519,7 +540,11 @@ class LLSIFClient:
         return respobj
     
     def login_unitlist(self):
-        '''Get a list of new account starting units(???).'''
+        '''Get a list of new account starting teams.
+        
+        unit_initial_set_id from 1 to 9 are muse members, 11 to 19 are Aquors
+        members.
+        member_category 1 is muse, 2 is Aquors.'''
         
         logger.info('Getting unit list')
         
@@ -535,6 +560,7 @@ class LLSIFClient:
         requestdata = OrderedDict([('module', 'login'),
                                    ('action', 'unitSelect'),
                                    ('timeStamp', None),
+                                   ('mgd', None),
                                    ('unit_initial_set_id', unit),
                                    ('commandNum', None)])
         
@@ -555,7 +581,10 @@ class LLSIFClient:
                                    ('action', 'merge'),
                                    ('timeStamp', None),
                                    ('base_owning_unit_user_id', base),
+                                   ('mgd', None),
+                                   ('unit_support_list', []),
                                    ('commandNum', None)])
+        # TODO: check what unit_support_list is
         
         respobj = self.api_single_request(requestdata)
         
@@ -575,6 +604,7 @@ class LLSIFClient:
                                    ('action', 'rankUp'),
                                    ('timeStamp', None),
                                    ('base_owning_unit_user_id', base),
+                                   ('mgd', None),
                                    ('commandNum', None)])
         
         respobj = self.api_single_request(requestdata)
@@ -663,7 +693,8 @@ class LLSIFClient:
         logger.info('Retrieving complete deck info')
         
         apirequest = [('unit', 'unitAll'),
-                      ('unit', 'deckInfo')]
+                      ('unit', 'deckInfo'),
+                      ('unit', 'supporterAll')]
                       
         respobj = self.api_multiple_requests(apirequest)
         
@@ -726,7 +757,9 @@ class LLSIFClient:
         return respobj
     
     def recruitinfo(self):
-        '''Get information about all recruitment tabs.'''
+        '''Get information about all recruitment tabs.
+        
+        member_category 1 is muse, 2 is Aquors.'''
         
         logger.info('Getting recruitment information')
         
@@ -795,7 +828,7 @@ class LLSIFClient:
         
         requestdata = OrderedDict([('module', 'platformAccount'),
                                    ('action', 'isConnectedLlAccount'),
-                                   ('mgd', 1)])
+                                   ('mgd', None)])
         
         respobj = self.api_single_request(requestdata)
         
@@ -833,7 +866,7 @@ class LLSIFClient:
                               ('module', request[0]), 
                               ('action', request[1]),
                               ('timeStamp', timestamp),
-                              ('mgd', 1),
+                              ('mgd', self.mgd),
                               ('commandNum', self.session['loginkey'] + '.' + \
                                              str(timestamp) + '.' + \
                                              str(self.session['commandnum']))])
@@ -845,6 +878,8 @@ class LLSIFClient:
                                              str(self.session['commandnum'])
                 if 'timeStamp' in requestdata:
                     requestdata['timeStamp'] = timestamp
+                if 'mgd' in requestdata and requestdata['mgd'] is None:
+                    requestdata['mgd'] = self.mgd
             
             requestjson = json.dumps(requestdata, separators=(',', ':'),
                                      ensure_ascii=False)
@@ -989,7 +1024,9 @@ class LLSIFClient:
         for timeout_attempt in range(10):
             try:
                 #time.sleep(random.uniform(0.3, 0.5))
+                logger.debug('Attempt {} to connecting...'.format(timeout_attempt))
                 if self.httpconn is None:
+                    logger.debug('Creating new HTTP connection')
                     self.httpconn = http.client.HTTPConnection(self.SERVER_HOST, timeout = 10)
                     self.httpconn.connect()
                 self.httpconn.putrequest("POST", url, skip_accept_encoding = True)
@@ -1148,6 +1185,7 @@ class LLSIFClient:
             headers = self.session['wv_header']
         
         try:
+            logger.debug('Attempting to open WebView connection')
             httpconn = http.client.HTTPConnection(self.SERVER_HOST, timeout = 20)
             httpconn.request("GET", url, headers=headers)
             httpresp = httpconn.getresponse()
